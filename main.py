@@ -47,16 +47,37 @@ def check_play(ctx, del_path):
     voice = ctx.guild.voice_client
     if (guild_id in queues):
         if (len(queues[guild_id]["playlist"]) != 0):
-            link = queues[guild_id]["playlist"][0]
-            os.system(f".\yt-dlp.exe -f bestaudio -o \"./yt/{guild_id}/%(title)s.%(ext)s\" {link}")
+            link = queues[guild_id]["playlist"][0][0]
+            playlist_counter = queues[guild_id]["playlist"][0][1]
+            os.system(f"yt-dlp -f bestaudio --playlist-items \"{playlist_counter}\" -o \"./yt/{guild_id}/%(title)s.%(ext)s\" \"{link}\"")
             path = f"./yt/{guild_id}/" + listdir(f"./yt/{guild_id}")[0]
             voice.play(FFmpegPCMAudio(path), after = lambda x = None: check_play(ctx, path))
-            now_playing[guild_id] = queues[guild_id]["song_name"][0]
             del queues[guild_id]["playlist"][0]
+            now_playing[guild_id] = queues[guild_id]["song_name"][0]
             del queues[guild_id]["song_name"][0]
         else:
             del queues[guild_id]
             os.rmdir(f"./yt/{guild_id}/")
+
+
+def check_link(guild_id, link, is_playlist):
+    if (is_playlist == None):
+        is_playlist = check_playlist(link)
+    if (not is_playlist):
+        song_name = subprocess.check_output(f"yt-dlp --no-warnings --ignore-errors --simulate --get-title {link}", shell=True).decode("windows_1251")[:-1]
+        queues[guild_id]["playlist"].append([link, 1])
+        queues[guild_id]["song_name"].append(song_name)
+    else:
+        song_names = subprocess.check_output(f"yt-dlp --no-warnings --ignore-errors --simulate --get-title {link}", shell=True).decode("windows_1251").split("\n")[:-1]
+        i = 1
+        for song_name in song_names:
+            queues[guild_id]["playlist"].append([link, i])
+            queues[guild_id]["song_name"].append(song_name)
+            i += 1
+
+
+def check_playlist(link):
+    return len(subprocess.check_output(f"yt-dlp --playlist-items \"1, 2\" --simulate --get-id {link}", shell=True).decode("windows_1251").split("\n")[:-1]) > 1
 
 
 bot = commands.Bot(command_prefix = settings['prefix'], help_command = None)
@@ -78,6 +99,7 @@ async def help(ctx):
 В скобках содержатся сокращённые вариации команд.
 """)
 
+
 for cmd in ("play", "p"):
     @bot.command(name = cmd)
     async def play(ctx):
@@ -92,15 +114,14 @@ for cmd in ("play", "p"):
         if (guild_id in queues):
             if (queues[guild_id]["play_mode"] == "radio"):
                 return
-            queues[guild_id]["playlist"].append(link)
-            queues[guild_id]["song_name"].append(subprocess.check_output(f".\yt-dlp.exe --simulate --get-title {link}", shell=True).decode("cp1125")[:-1])
+            check_link_thread = Thread(target = check_link, args = (guild_id, link, None))
+            check_link_thread.start()
         else:
             queues[guild_id] = {}
             queues[guild_id]["playlist"] = []
             queues[guild_id]["song_name"] = []
             queues[guild_id]["play_mode"] = "yt"
-            queues[guild_id]["playlist"].append(link)
-            queues[guild_id]["song_name"].append(subprocess.check_output(f".\yt-dlp.exe --simulate --get-title {link}", shell=True).decode("cp1125")[:-1])
+            check_link(guild_id, link, None)
             yt_play_thread = Thread(target = check_play, args = (ctx, None))
             yt_play_thread.start()
 
