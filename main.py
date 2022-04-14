@@ -41,10 +41,11 @@ def shuffle_queue(ctx):
 
 
 def check_play(ctx, del_path):
-    if (del_path != None):
-        os.remove(del_path)
     guild_id = ctx.message.guild.id
     voice = ctx.guild.voice_client
+    files = [f for f in listdir(f"./yt/{guild_id}") if isfile(join(f"./yt/{guild_id}", f))]
+    for f in files:
+        os.remove(f"./yt/{guild_id}/" + f)
     if (guild_id in queues):
         if (len(queues[guild_id]["playlist"]) != 0):
             link = queues[guild_id]["playlist"][0][0]
@@ -94,6 +95,8 @@ async def help(ctx):
 {settings['prefix']}play(p) - добавление в очередь песни по ссылке.
 {settings['prefix']}radio(r) - запускает радио.
 {settings['prefix']}leave(l) - выкидывает бота из голосового канала
+{settings['prefix']}pause - поставить бота на паузу
+{settings['prefix']}resume - возбновить воспроизведение
 {settings['prefix']}skip(s) n - пропустить трек (вместо n указать кол-во пропускаемых песен)
 {settings['prefix']}queue(q) n - список треков (вместо n указать номер страницы)
 В скобках содержатся сокращённые вариации команд.
@@ -131,13 +134,18 @@ for cmd in ("radio", "r"):
     async def radio(ctx):
         guild_id = ctx.message.guild.id
         voice = ctx.guild.voice_client
+        message = ctx.message.content.split(' ')
+        if (len(message) >= 2):
+            station = int(message[1])
+        else:
+            station = "music"
         if (guild_id in queues):
             if (queues[guild_id]["play_mode"] == "yt"):
                 await ctx.send("Запуск радио режима невозможен, пока прослушиваются песни по запросам.")
         if (voice == None):
             await ctx.message.author.voice.channel.connect()
         queues[guild_id] = {}
-        queues[guild_id]["playlist"] = [f for f in listdir("./music") if isfile(join("./music", f))]
+        queues[guild_id]["playlist"] = [f for f in listdir(f"./music/{station}") if isfile(join(f"./music{station}", f))]
         queues[guild_id]["song_name"] = queues[guild_id]["playlist"][:]
         queues[guild_id]["play_mode"] = "radio";
         await ctx.send(f"Запускаю радио.")
@@ -158,6 +166,20 @@ for cmd in ("skip", "s"):
         del queues[guild_id]["playlist"][:n-1]
         del queues[guild_id]["song_name"][:n-1]
         voice.stop()
+
+
+for cmd in ("pause",):
+    @bot.command(name = cmd)
+    async def pause(ctx):
+        voice = ctx.guild.voice_client
+        voice.pause()
+
+
+for cmd in ("resume",):
+    @bot.command(name = cmd)
+    async def pause(ctx):
+        voice = ctx.guild.voice_client
+        voice.resume()
 
 
 for cmd in ("queue", "q"):
@@ -193,7 +215,8 @@ for cmd in ("leave", "l"):
 for cmd in ("t", "test"):
     @bot.command(name = cmd)
     async def test(ctx):
-        print(queues)
+        voice = ctx.guild.voice_client
+        voice.play()
 
 
 bot.run(settings['token'])
