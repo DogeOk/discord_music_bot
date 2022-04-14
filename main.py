@@ -13,12 +13,12 @@ import subprocess
 queues = {}
 now_playing = {}
 
-def check_queue(ctx):
+def check_queue(ctx, station):
     guild_id = ctx.message.guild.id
     voice = ctx.guild.voice_client
     if (guild_id in queues):
         if (len(queues[guild_id]["playlist"]) != 0):
-            voice.play(FFmpegPCMAudio("./music/" + queues[guild_id]["playlist"][0]), after = lambda x = None: check_queue(ctx) )
+            voice.play(FFmpegPCMAudio(f"./music/{station}/" + queues[guild_id]["playlist"][0]), after = lambda x = None: check_queue(ctx, station) )
             now_playing[guild_id] = queues[guild_id]["song_name"][0]
             del queues[guild_id]["playlist"][0]
             del queues[guild_id]["song_name"][0]
@@ -136,7 +136,7 @@ for cmd in ("radio", "r"):
         voice = ctx.guild.voice_client
         message = ctx.message.content.split(' ')
         if (len(message) >= 2):
-            station = int(message[1])
+            station = message[1]
         else:
             station = "music"
         if (guild_id in queues):
@@ -145,12 +145,12 @@ for cmd in ("radio", "r"):
         if (voice == None):
             await ctx.message.author.voice.channel.connect()
         queues[guild_id] = {}
-        queues[guild_id]["playlist"] = [f for f in listdir(f"./music/{station}") if isfile(join(f"./music{station}", f))]
+        queues[guild_id]["playlist"] = [f for f in listdir(f"./music/{station}") if isfile(join(f"./music/{station}", f))]
         queues[guild_id]["song_name"] = queues[guild_id]["playlist"][:]
         queues[guild_id]["play_mode"] = "radio";
         await ctx.send(f"Запускаю радио.")
         shuffle_queue(ctx)
-        check_queue(ctx)
+        check_queue(ctx, station)
 
 
 for cmd in ("skip", "s"):
