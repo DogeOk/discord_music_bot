@@ -1,16 +1,18 @@
 import random
 
+
 class ServerInfo():
     song_type = []
     queue = []
     song_names = []
-    now_playing = []
+    now_playing = ''
     queue_message_id = []
     player_message_id = 0
     queue_list_page_number = 0
+
     def shuffle_queue(self):
         temp = self.queue[:]
-        temp2 =  self.song_names[:]
+        temp2 = self.song_names[:]
         self.queue = []
         self.song_names = []
         while len(temp) > 0:
