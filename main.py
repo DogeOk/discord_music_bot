@@ -4,6 +4,7 @@ from discord import app_commands
 from discord import FFmpegPCMAudio
 from os import listdir, system, rmdir, remove
 from os.path import isfile, join
+import os
 from threading import Thread
 from settings import settings
 from subprocess import check_output
@@ -25,9 +26,12 @@ def check_queue(server_info, voice, station):
         del server_info.song_names[0]
 
 
-def check_play(ctx):
-    guild_id = ctx.message.guild.id
-    voice = ctx.guild.voice_client
+def check_play(interaction):
+    guild_id = interaction.guild_id
+    voice = interaction.guild.voice_client
+    newpath = f"./yt/{guild_id}"
+    if not os.path.exists(newpath):
+        os.makedirs(newpath)
     files = [
         f for f in listdir(
             f"./yt/{guild_id}"
@@ -42,7 +46,8 @@ def check_play(ctx):
             system(f"yt-dlp -f bestaudio --playlist-items \"{playlist_counter}\" -o \"./yt/{guild_id}/%(title)s.%(ext)s\" \"{link}\"")
             path = f"./yt/{guild_id}/" + listdir(f"./yt/{guild_id}")[0]
             voice.play(
-                FFmpegPCMAudio(path), after=lambda x=None: check_play(ctx)
+                FFmpegPCMAudio(path),
+                after=lambda x=None: check_play(interaction)
             )
             del queues[guild_id]["playlist"][0]
             now_playing[guild_id] = queues[guild_id]["song_name"][0]
@@ -93,33 +98,33 @@ async def on_ready():
     )
 
 
-for cmd in ("play", "p"):
-    @bot.command(name=cmd)
-    async def play(ctx):
-        message = ctx.message.content.split(' ')
-        guild_id = ctx.message.guild.id
-        voice = ctx.guild.voice_client
-        if (len(message) < 2):
+@bot.tree.command(name="play", description="Запуск песен из youtube")
+@app_commands.describe(link="Ссылка на видео")
+async def play(
+    interaction: discord.Interaction,
+    link: str
+):
+    guild_id = interaction.guild_id
+    voice = interaction.guild.voice_client
+    await interaction.response.send_message("Playing...")
+    if (voice is None):
+        await interaction.user.voice.channel.connect()
+    if (guild_id in queues):
+        if (queues[guild_id]["play_mode"] == "radio"):
             return
-        if (voice is None):
-            await ctx.message.author.voice.channel.connect()
-        link = message[1]
-        if (guild_id in queues):
-            if (queues[guild_id]["play_mode"] == "radio"):
-                return
-            check_link_thread = Thread(
-                target=check_link,
-                args=(guild_id, link, None)
-            )
-            check_link_thread.start()
-        else:
-            queues[guild_id] = {}
-            queues[guild_id]["playlist"] = []
-            queues[guild_id]["song_name"] = []
-            queues[guild_id]["play_mode"] = "yt"
-            check_link(guild_id, link, None)
-            yt_play_thread = Thread(target=check_play, args=(ctx,))
-            yt_play_thread.start()
+        check_link_thread = Thread(
+            target=check_link,
+            args=(guild_id, link, None)
+        )
+        check_link_thread.start()
+    else:
+        queues[guild_id] = {}
+        queues[guild_id]["playlist"] = []
+        queues[guild_id]["song_name"] = []
+        queues[guild_id]["play_mode"] = "yt"
+        check_link(guild_id, link, None)
+        yt_play_thread = Thread(target=check_play, args=(interaction,))
+        yt_play_thread.start()
 
 
 @bot.tree.command(name="skip", description="Пропуск песен")
