@@ -118,3 +118,4 @@ yt/
 yt-dlp.exe
 settings.py
 test.py
+.vscode/

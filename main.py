@@ -2,6 +2,7 @@ import discord
 from discord.ext import commands
 from discord import app_commands
 from discord import FFmpegPCMAudio
+import lyricsgenius
 from os import listdir, system, rmdir, remove
 from os.path import isfile, join
 import os
@@ -13,6 +14,12 @@ from server_info import ServerInfo
 queues = {}
 now_playing = {}
 server_info_dict = {}
+genius = lyricsgenius.Genius(settings["genius-token"])
+bot = commands.Bot(
+    command_prefix=settings['prefix'],
+    help_command=None,
+    intents=discord.Intents.all()
+)
 
 
 def check_queue(server_info, voice, station):
@@ -84,20 +91,6 @@ def check_playlist(link):
         ).decode("windows_1251").split("\n")[:-1]) > 1
 
 
-bot = commands.Bot(
-    command_prefix=settings['prefix'],
-    help_command=None,
-    intents=discord.Intents.all()
-)
-
-
-@bot.event
-async def on_ready():
-    await bot.change_presence(
-        activity=discord.Game(name=f"{settings['prefix']}help")
-    )
-
-
 @bot.tree.command(name="play", description="Запуск песен из youtube")
 @app_commands.describe(link="Ссылка на видео")
 async def play(
@@ -143,11 +136,11 @@ async def skip(
     interaction.guild.voice_client.stop()
     print(str(n)[-1])
     if str(n)[-1] == '1':
-        await interaction.send_message(f"Пропускаю {n} песню")
+        await interaction.response.send_message(f"Пропускаю {n} песню")
     elif str(n)[-1] in ['2', '3', '4']:
-        await interaction.send_message(f"Пропускаю {n} песни")
+        await interaction.response.send_message(f"Пропускаю {n} песни")
     else:
-        await interaction.send_message(f"Пропускаю {n} песен")
+        await interaction.response.send_message(f"Пропускаю {n} песен")
 
 
 @bot.tree.command(name="queue", description="Выводит список песен")
@@ -218,6 +211,28 @@ async def pause_button(interaction: discord.Interaction):
     await interaction.response.send_message("Ставлю песни на паузу")
     voice = interaction.guild_id.voice_client
     voice.pause()
+
+
+@bot.tree.command(name="lyrics", description="Вывести текст песни")
+async def lyrics(interaction: discord.Interaction):
+    server_info = server_info_dict[interaction.guild_id]
+    song_name = server_info.now_playing.replace('.mp3', '').replace('.webm', '')
+    try:
+        song = genius.search_song(song_name)
+        song_lyrics = song.lyrics[song.lyrics.find("Lyrics")+6:-5]
+        embed = discord.Embed(
+            title=song_name,
+            description=song_lyrics,
+            color=discord.Color.blue(),
+            url=song.url
+        )
+        embed.set_thumbnail(url=song.song_art_image_thumbnail_url)
+        if len(song_lyrics) < 4096:
+            await interaction.response.send_message(embed=embed)
+        else:
+            await interaction.response.send_message("Я не смог найти песню или в ней нет слов")
+    except AttributeError:
+        await interaction.response.send_message("Я не смог найти песню или в ней нет слов")
 
 
 @bot.tree.command(

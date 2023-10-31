@@ -6,9 +6,6 @@ class ServerInfo():
     queue = []
     song_names = []
     now_playing = ''
-    queue_message_id = []
-    player_message_id = 0
-    queue_list_page_number = 0
 
     def shuffle_queue(self):
         temp = self.queue[:]
