@@ -5,7 +5,7 @@ from discord import FFmpegPCMAudio
 import lyricsgenius
 from os import listdir, system
 from os.path import isfile, join
-from settings import settings
+from settings import settings, radio_stations
 from subprocess import check_output
 from server_info import ServerInfo, SongInfo
 import shutil
@@ -45,7 +45,7 @@ def check_queue(server_info, voice):
                 after=lambda x=None: check_queue(server_info, voice)
             )
     else:
-        server_info.now_playing = None
+        del server_info_dict[guild_id]
 
 
 @bot.tree.command(name="play", description="Запуск песен из youtube")
@@ -55,20 +55,22 @@ async def play(
     link: str
 ):
     voice = interaction.guild.voice_client
+    guild_id = interaction.guild_id
     if (interaction.user.voice is None):
-        await interaction.response.send_message(
-            "Зайдите в голсовой канал"
-        )
+        await interaction.response.send_message("Зайдите в голсовой канал")
         return
-    if server_info_dict.get(interaction.guild_id) is None:
-        server_info_dict[interaction.guild_id] = ServerInfo(interaction.guild_id)
-    server_info = server_info_dict[interaction.guild_id]
-    await interaction.response.send_message("Играю...")
-    song_name = check_output(f"yt-dlp --no-warnings --ignore-errors --simulate --get-title \"{link}\"", shell=True).decode("windows_1251")[:-1]
-    server_info.songs.append(SongInfo(link, "url", song_name))
     if (voice is None):
         await interaction.user.voice.channel.connect()
         voice = interaction.guild.voice_client
+        if server_info_dict.get(guild_id) is not None:
+            del server_info_dict[guild_id]
+    if server_info_dict.get(guild_id) is None:
+        server_info_dict[guild_id] = ServerInfo(guild_id)
+    server_info = server_info_dict[guild_id]
+    await interaction.response.send_message("Играю...")
+    song_name = check_output(f"yt-dlp --no-warnings --ignore-errors --simulate --get-title \"{link}\"", shell=True).decode("windows_1251")[:-1]
+    server_info.songs.append(SongInfo(link, "url", song_name))
+    if server_info.now_playing is None:
         play_thread = Thread(target=check_queue, args=(server_info, voice))
         play_thread.start()
 
@@ -121,27 +123,24 @@ async def queue_slash(
 
 
 @bot.tree.command(name="radio", description="Запускает радио")
-@app_commands.choices(station=[
-    discord.app_commands.Choice(name="music", value="music"),
-    discord.app_commands.Choice(name="♂️gachi♂️", value="gachi"),
-    discord.app_commands.Choice(name="Audio attack", value="au")
-])
+@app_commands.choices(station=radio_stations)
 async def radio(
     interaction: discord.Interaction,
     station: discord.app_commands.Choice[str]
 ):
     voice = interaction.guild.voice_client
+    guild_id = interaction.guild_id
     if (interaction.user.voice is None):
-        await interaction.response.send_message(
-            "Зайдите в голсовой канал"
-        )
+        await interaction.response.send_message("Зайдите в голсовой канал")
         return
-    if server_info_dict.get(interaction.guild_id) is None:
-        server_info_dict[interaction.guild_id] = ServerInfo(interaction.guild_id)
-    server_info = server_info_dict[interaction.guild_id]
     if (voice is None):
         await interaction.user.voice.channel.connect()
         voice = interaction.guild.voice_client
+        if server_info_dict.get(guild_id) is not None:
+            del server_info_dict[guild_id]
+    if server_info_dict.get(guild_id) is None:
+        server_info_dict[guild_id] = ServerInfo(guild_id)
+    server_info = server_info_dict[guild_id]
     for f in [f for f in listdir(f"./music/{station.value}") if isfile(join(f"./music/{station.value}", f))]:
         server_info.songs.append(SongInfo(join(f"./music/{station.value}", f), "file", f.replace('.mp3', '').replace('.webm', '')))
     if server_info.now_playing is None:
@@ -159,7 +158,8 @@ async def radio(
 )
 async def shuffle(interaction: discord.Interaction):
     if server_info_dict.get(interaction.guild_id) is None:
-        server_info_dict[interaction.guild_id] = ServerInfo(interaction.guild_id)
+        await interaction.response.send_message("Нечего перемешивать")
+        return
     server_info = server_info_dict[interaction.guild_id]
     server_info.shuffle_queue()
     await interaction.response.send_message("Перемешиваю плейлист")
@@ -209,7 +209,7 @@ async def lyrics(interaction: discord.Interaction):
     description="Выкинуть бота из голосового канала"
 )
 async def leave_button(interaction: discord.Interaction):
-    server_info_dict[interaction.guild_id].songs = []
+    del server_info_dict[interaction.guild_id]
     await interaction.guild.voice_client.disconnect()
     await interaction.response.send_message("Улетучиваюсь")
 
