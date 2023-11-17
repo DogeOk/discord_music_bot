@@ -2,11 +2,11 @@ import random
 
 
 class ServerInfo():
-    songs = []
-    now_playing = None
 
     def __init__(self, guild_id):
         self.guild_id = guild_id
+        self.songs = []
+        self.now_playing = None
 
     def shuffle_queue(self):
         temp = self.songs[:]
